@@ -382,38 +382,29 @@ public sealed partial class ShuttleSystem
             return false;
         }
 
-        // Get all docked shuttles and verify they can all FTL
-        var dockedShuttles = new HashSet<EntityUid>();
-        GetAllDockedShuttles(uid, dockedShuttles);
-
-        foreach (var dockedUid in dockedShuttles)
+        // Force undock emergency and arrivals shuttles
+        if (HasComp<EmergencyShuttleComponent>(uid) || HasComp<ArrivalsShuttleComponent>(uid))
         {
-            if (dockedUid == uid)
-                continue;
-
-            if (!CanFTL(dockedUid, out var reason))
-            {
-                Log.Warning($"Cannot FTL due to docked shuttle {ToPrettyString(dockedUid)}: {reason}");
-                return false;
-            }
+            _dockSystem.UndockDocks(uid);
         }
-
-        // Add FTL component to all docked shuttles
-        foreach (var dockedUid in dockedShuttles)
+        // For other shuttles, check if docked shuttles can FTL
+        else
         {
-            if (dockedUid == uid)
-                continue;
+            // Get all docked shuttles and verify they can all FTL
+            var dockedShuttles = new HashSet<EntityUid>();
+            GetAllDockedShuttles(uid, dockedShuttles);
 
-            var dockedShuttle = Comp<ShuttleComponent>(dockedUid);
-            _thruster.DisableLinearThrusters(dockedShuttle);
-            _thruster.EnableLinearThrustDirection(dockedShuttle, DirectionFlag.North);
-            _thruster.SetAngularThrust(dockedShuttle, false);
+            foreach (var dockedUid in dockedShuttles)
+            {
+                if (dockedUid == uid)
+                    continue;
 
-            var dockedComponent = AddComp<FTLComponent>(dockedUid);
-            dockedComponent.State = FTLState.Starting;
-            dockedComponent.LinkedShuttle = uid;
-            dockedComponent.StartupTime = 0f;  // Instant startup for linked shuttles
-            dockedComponent.TravelTime = 0f;   // Instant travel for linked shuttles
+                if (!CanFTL(dockedUid, out var reason))
+                {
+                    Log.Warning($"Cannot FTL due to docked shuttle {ToPrettyString(dockedUid)}: {reason}");
+                    return false;
+                }
+            }
         }
 
         _thruster.DisableLinearThrusters(shuttle);
